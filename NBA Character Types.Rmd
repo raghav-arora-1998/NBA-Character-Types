@@ -1,0 +1,173 @@
+---
+title: ""
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+## Global options
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+```{r library}
+library(tidyverse)
+library(here)
+library(dplyr)
+```
+
+```{r data_read}
+NBA = read.csv(here("NBA_player_of_the_week.csv"))
+
+```
+
+1. For each variable identify its type. Which variables are NOT numeric? Does this make sense?
+
+```{r var type}
+str(NBA)
+
+# all variables except real values are not numeric. 
+# this makes sense since there are no variables with decimal points.
+  # 1. cases like weight should be in integer for,
+  # 2. cases such as height should be numeric
+
+```
+
+2. Notice that the last 100 or so rows of the dataset have height values in centimeters. The other height values have a specific format, “feet-inches”. Create a new variable called “heightcm” that contains the height of each player in centimeters. This variable should be numeric.
+
+```{r Height_cm}
+NBA$Height <- gsub('-', '.', NBA$Height)
+
+vec <- NBA$Height
+for (i in 1:length(vec)) {
+  if(str_detect(vec[i], 'cm') == TRUE) {
+    vec[i] <- str_extract(vec[i],".*(?=cm)")
+    NBA$Height_cm[i] <- vec[i]
+  
+  }
+  else {
+    NBA$Height_cm[i] <- as.numeric(vec[i])*30.48
+  }
+}
+
+NBA$Height_cm <- as.numeric(NBA$Height_cm)
+```
+
+3. Notice that the last 100 or so rows of the dataset have weight values in kilograms. The rest of the values are in lbs. Create a new variable called “weightkg” that contains the weight of each player in kilograms. This variable should be numeric.
+
+```{r Weight_kg}
+vec <- NBA$Weight
+for (i in 1:length(vec)) {
+  if(str_detect(vec[i], 'kg') == TRUE) {
+    vec[i] <- str_extract(vec[i],".*(?=kg)")
+    NBA$Weight_kg[i] <- vec[i]
+  
+  }
+  else {
+    NBA$Weight_kg[i] <- as.numeric(vec[i])/2.205
+  }
+}
+NBA$Weight_kg <- as.numeric(NBA$Weight_kg)
+```
+
+4. Create a new variable called “timesWon” that contains the number of times each Player/Team combination won. Your resulting dataset should only have one row for each Player/Team combination. Note: we will lost the date-related variables with this, but it’s fine!
+
+```{r Times_Won}
+NBA1 <- NBA %>% 
+  group_by(Player, Team, Conference) %>% 
+  summarise(Times_Won = n(), .groups = 'drop')
+NBA1
+```
+
+5. Which 5 players have won player of the week the most times?
+
+```{r top_5}
+NBA1 <- data.frame(NBA1)
+
+NBA1 <-arrange(NBA1,-Times_Won)
+head(NBA1)
+```
+6. Fill in the blanks in the following paragraph after writing code to do the relevant calculations.
+
+This data set contains _____ rows containing information on _____ different positions. Players’ age ranged from _____ to _____, _____% are from the SG position, and the overall average Height value (in centimeters) is _____. The most common team is _____ ( _____%), while the least common team was _____. Although the overall median Weight (in kilograms) was _____, the maximum Weight among East conference players was _____. Overall, _____ percent of these players have won more than 10 times; among the West conference this was _____% and among the East conference this was _____%.
+
+```{r fill}
+rows<- nrow(NBA)
+rows
+
+positions <- length(unique(NBA$Position))
+positions
+
+min_age <- min(NBA$Age)
+min_age
+
+max_age <- max(NBA$Age)
+max_age
+
+NBA2 <- NBA %>% filter(NBA$Position == "SG")
+NBA2 <- length(unique(NBA2$Player))
+SG <- (NBA2/(length(unique(NBA$Player))))*100
+SG
+       
+avg_height <- mean(NBA$Height_cm)
+avg_height
+
+
+NBA3 <- NBA %>% 
+  group_by(Team) %>% 
+  summarise(Most_Common = n()) %>% 
+  slice_max(Most_Common, n=1) 
+Common <- NBA3$Team
+Common
+
+NBA4 <- NBA %>% 
+  group_by(Team) %>% 
+  summarise(Most_Common = n()) %>% 
+  mutate(freq = round(Most_Common/sum(Most_Common)*100,1)) %>% 
+  slice_max(Most_Common, n=1)
+percent <- NBA4$freq
+percent
+
+NBA5 <- NBA %>% 
+  group_by(Team) %>% 
+  summarise(Most_Common = n()) %>% 
+  slice_min(Most_Common, n=1) 
+Least <- NBA5$Team
+Least
+
+median <- median(NBA$Weight_kg)
+median
+
+NBA6 <- NBA %>% 
+  filter(NBA$Conference == "East") %>% 
+  slice_max(Weight_kg, n=1)
+MaxEast <- NBA6$Weight_kg
+MaxEast
+
+NBA7 <- NBA1 %>%
+  mutate(Times_Won = case_when((NBA1$Times_Won>10) ~ "above10", TRUE ~ "10&below10")) %>%
+  group_by(Times_Won) %>%
+  summarise(
+    individual = n()
+  ) %>%
+  mutate(percentWin = individual/sum(individual)*100) %>% 
+  filter(Times_Won == "above10")
+
+
+WinPercent <- NBA7$percentWin
+WinPercent
+
+NBA8 <- NBA1 %>%
+  mutate(Times_Won = case_when((NBA1$Times_Won>10) ~ "above10", TRUE ~ "10&below10")) %>%
+  group_by(Times_Won,Conference) %>%
+  summarise(
+    individual = n(), .groups = 'drop'
+  ) %>%
+  mutate(percent = individual/sum(individual)*100) %>% 
+  filter(Times_Won == 'above10')
+NBA8
+
+```
+
+This data set contains 1145 rows containing information on 11 different positions. Players’ age ranged from 19 to 40, 12.41% are from the SG position, and the overall average Height value (in centimeters) is 199.45. The most common team is Los Angeles Lakers ( 6.2%), while the least common team was Nets & Pelicans. Although the overall median Weight (in kilograms) was 102.04, the maximum Weight among East conference players was 147.40. Overall, 5.19 percent of these players have won more than 10 times; among the West conference this was 1.91% and among the East conference this was 1.64%.
